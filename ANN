@@ -1,0 +1,54 @@
+"""
+ANN 网络结构：SimpleANN
+"""
+from __future__ import annotations
+
+from typing import List
+
+import torch
+import torch.nn as nn
+
+
+class SimpleANN(nn.Module):
+    """
+    全连接神经网络 (MLP)
+
+    Args:
+        input_size: 输入特征维度
+        hidden_sizes: 隐藏层大小列表
+        num_outputs: 输出维度（默认1）
+        dropout_rate: Dropout率
+        activation: 激活函数类型（'relu'或'tanh'）
+        use_batch_norm: 是否使用BatchNorm
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_sizes: List[int],
+        num_outputs: int = 1,
+        dropout_rate: float = 0.3,
+        activation: str = "relu",
+        use_batch_norm: bool = True,
+    ) -> None:
+        super().__init__()
+        layers = []
+        prev = input_size
+
+        for i, h in enumerate(hidden_sizes):
+            layers.append(nn.Linear(prev, h))
+            if use_batch_norm:
+                layers.append(nn.BatchNorm1d(h))
+            if activation == "tanh":
+                layers.append(nn.Tanh())
+            else:
+                layers.append(nn.ReLU())
+            if dropout_rate > 0 and i < len(hidden_sizes) - 1:
+                layers.append(nn.Dropout(dropout_rate))
+            prev = h
+
+        layers.append(nn.Linear(prev, num_outputs))
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.network(x)
