@@ -1,0 +1,54 @@
+import numpy as np
+import torch
+
+from ANN import SimpleANN
+from CNN import SimpleCNN
+from RF import RFModel
+from SVR import SVRModel
+
+
+def demo_cnn() -> None:
+    batch = 2
+    channels = 13
+    grid = 32
+
+    x = torch.randn(batch, channels, grid, grid)
+    layer_index = torch.randint(0, 10, (batch, grid, grid))
+
+    model = SimpleCNN(num_channels=channels, grid_size=grid, num_outputs=1)
+    with torch.no_grad():
+        y = model(x, layer_index)
+    print("CNN output shape:", tuple(y.shape))
+
+
+def demo_ann() -> None:
+    x = torch.randn(4, 20)
+    model = SimpleANN(input_size=20, hidden_sizes=[64, 32], num_outputs=1)
+    with torch.no_grad():
+        y = model(x)
+    print("ANN output shape:", tuple(y.shape))
+
+
+def demo_rf() -> None:
+    X = np.random.rand(100, 10)
+    y = np.random.rand(100)
+    model = RFModel()
+    model.fit(X, y)
+    pred = model.predict(X[:5])
+    print("RF pred shape:", pred.shape)
+
+
+def demo_svr() -> None:
+    X = np.random.rand(80, 6)
+    y = np.random.rand(80)
+    model = SVRModel()
+    model.fit(X, y)
+    pred = model.predict(X[:5])
+    print("SVR pred shape:", pred.shape)
+
+
+if __name__ == "__main__":
+    demo_cnn()
+    demo_ann()
+    demo_rf()
+    demo_svr()
