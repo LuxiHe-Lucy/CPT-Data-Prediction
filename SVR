@@ -1,0 +1,37 @@
+"""
+SVR 模型封装：SVR
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
+import numpy as np
+from sklearn.svm import SVR
+
+
+class SVRModel:
+    """支持向量回归核心封装"""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        self.model = SVR(
+            kernel=config.get("kernel", "rbf"),
+            C=float(config.get("C", 1.0)),
+            epsilon=float(config.get("epsilon", 0.1)),
+            gamma=config.get("gamma", "scale"),
+            degree=int(config.get("degree", 3)),
+            coef0=float(config.get("coef0", 0.0)),
+            shrinking=bool(config.get("shrinking", True)),
+            tol=float(config.get("tol", 0.001)),
+            cache_size=int(config.get("cache_size", 200)),
+            max_iter=int(config.get("max_iter", -1)),
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "SVRModel":
+        y = y.flatten() if y.ndim > 1 else y
+        self.model.fit(X, y)
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        pred = self.model.predict(X)
+        return pred.flatten() if pred.ndim > 1 else pred
