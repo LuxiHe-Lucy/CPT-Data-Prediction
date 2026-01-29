@@ -1,0 +1,160 @@
+"""
+CNN 网络结构：SEBlock + ResidualBlock + SimpleCNN
+"""
+from __future__ import annotations
+
+from typing import List, Optional
+
+import torch
+import torch.nn as nn
+
+
+class SEBlock(nn.Module):
+    """Squeeze-and-Excitation Block"""
+
+    def __init__(self, channel: int, reduction: int = 16) -> None:
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
+class ResidualBlock(nn.Module):
+    """残差块，包含跳跃连接与 SE 注意力"""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        stride: int = 1,
+        downsample: Optional[nn.Module] = None,
+    ) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
+        )
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False
+        )
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.se = SEBlock(out_channels)
+        self.downsample = downsample
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.se(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+        return out
+
+
+class SimpleCNN(nn.Module):
+    """
+    卷积神经网络（单输出回归）
+    输入:
+      - 连续通道栅格: (B, C, H, W)
+      - 可选 layer_index 栅格: (B, H, W)
+    输出:
+      - (B, 1) 单个参数值
+    """
+
+    def __init__(
+        self,
+        num_channels: int = 13,
+        grid_size: int = 32,
+        num_outputs: int = 1,
+        hidden_sizes: Optional[List[int]] = None,
+        dropout_rate: float = 0.5,
+        num_layer_indices: int = 10,
+        embedding_dim: int = 16,
+        use_layer_index: bool = True,
+    ) -> None:
+        super().__init__()
+
+        if hidden_sizes is None:
+            hidden_sizes = [128, 128]
+
+        self.use_layer_index = use_layer_index
+
+        total_input_channels = num_channels + (embedding_dim if self.use_layer_index else 0)
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(total_input_channels, 64, kernel_size=3, stride=3, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+        )
+
+        self.layer1 = self._make_layer(64, 64, 2, stride=1)
+        self.layer2 = self._make_layer(64, 128, 2, stride=2)
+        self.layer3 = self._make_layer(128, 256, 2, stride=2)
+
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(1)
+
+        self.spatial_embedding = (
+            nn.Embedding(num_layer_indices, embedding_dim) if self.use_layer_index else None
+        )
+
+        layers: List[nn.Module] = []
+        prev_size = 256
+        for hidden_size in hidden_sizes:
+            layers.append(nn.Linear(prev_size, hidden_size))
+            layers.append(nn.BatchNorm1d(hidden_size))
+            layers.append(nn.ReLU())
+            if dropout_rate > 0:
+                layers.append(nn.Dropout(dropout_rate))
+            prev_size = hidden_size
+        layers.append(nn.Linear(prev_size, num_outputs))
+        self.fc = nn.Sequential(*layers)
+
+    def _make_layer(self, in_channels: int, out_channels: int, blocks: int, stride: int = 1) -> nn.Sequential:
+        downsample = None
+        if stride != 1 or in_channels != out_channels:
+            downsample = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels),
+            )
+
+        layers = [ResidualBlock(in_channels, out_channels, stride, downsample)]
+        for _ in range(1, blocks):
+            layers.append(ResidualBlock(out_channels, out_channels))
+        return nn.Sequential(*layers)
+
+    def forward(self, x_continuous: torch.Tensor, layer_index: Optional[torch.Tensor] = None) -> torch.Tensor:
+        if self.use_layer_index and (layer_index is not None):
+            layer_embedding = self.spatial_embedding(layer_index)
+            layer_embedding = layer_embedding.permute(0, 3, 1, 2)
+            x = torch.cat([x_continuous, layer_embedding], dim=1)
+        else:
+            x = x_continuous
+
+        x = self.conv1(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        x = self.adaptive_pool(x).flatten(1)
+        return self.fc(x)
