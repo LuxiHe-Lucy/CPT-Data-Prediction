@@ -1,0 +1,51 @@
+data:
+  data_dir: 'D:\CNN\数据集\dataset_pickle_14通道_64x64'
+  output_base_dir: 'D:\CNN\预测结果（1.15）\ANN'
+  test_files:
+    - 'CZ7_CPT13.pickle'
+    - 'CZ7_CPT24.pickle'
+  auto_select_test: false
+  auto_test_count: 2
+  output_subdir: 'ANN_results'
+  model_filename: 'ann_model.pkl'
+  data_file_pattern: '*.pickle'
+
+logging:
+  log_dir: 'D:\CNN\预测结果（1.15）\ANN'
+  training_log_prefix: 'training_log'
+  framework_log_prefix: 'framework_log'
+
+model:
+  target_param: qc  # qc/fs/u2
+  input_mode: 'statistics'  # 'flatten_raster' 或 'statistics'
+  selected_channels: [0, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13]
+  crop_size: 32  # 仅在flatten_raster模式下使用
+
+  hidden_sizes: [512, 256, 128]
+  dropout_rate: 0.2
+  activation: 'relu'  # 'relu', 'tanh', 'sigmoid'
+  use_batch_norm: true
+
+  epochs: 150
+  batch_size: 32
+  learning_rate: 0.0008
+  weight_decay: 0.0001
+  patience: 15
+  gradient_clip: 1.0
+
+  device: 'auto'  # 'cuda', 'cpu', 'auto'
+
+  log_dir: logs
+  percentile_file: percentile_bounds.json
+  model_dir: .
+  normalization_file: channel_normalization.json
+  layer_index_mapping_file: layer_index_mapping.json
+  target_stats_file: target_stats.json
+  qc_scaler_file: qc_robust_scaler.pkl
+
+model_type: ANN
+name: ANN模型（单输出回归）
+
+training:
+  random_state: 42
+  val_size: 0.1

@@ -1,0 +1,57 @@
+# ==================== 数据路径配置 ====================
+data:
+  data_dir: 'D:\CNN\数据集\dataset_pickle_14通道_64x64'
+  output_base_dir: 'D:\CNN\预测结果（1.15）\16（can）'
+  # 指定测试集孔位，其余孔位参与训练+验证（9:1）
+  test_files:
+    - 'CZ7_CPT13.pickle'
+    - 'CZ7_CPT24.pickle'
+  # 如果test_files中的文件不存在，是否自动使用前N个文件作为测试集
+  auto_select_test: false
+  auto_test_count: 2
+  output_subdir: 'CNN_results'
+  model_filename: 'cnn_model.pkl'
+  data_file_pattern: '*.pickle'
+
+# ==================== 日志配置 ====================
+logging:
+  log_dir: 'D:\CNN\预测结果（1.15）\16（can）'
+  training_log_prefix: 'training_log'
+  framework_log_prefix: 'framework_log'
+
+# ==================== 模型配置 ====================
+model:
+  target_param: qc  # 目标参数: qc/fs/u2
+  selected_channels: [0, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13]
+  grid_size: 16
+  hidden_sizes: [256, 128, 64]
+  dropout: 0.1
+  conv_dropout: 0.1
+  embedding_dim: 16
+  num_layer_indices: 7
+  epochs: 300
+  batch_size: 16
+  learning_rate: 0.0005
+  weight_decay: 0.00005
+  patience: 30
+  gradient_clip: 1.0
+  loss_type: mse
+  crop_size: 16
+  device: cuda  # cuda/cpu/auto
+  use_amp: true
+  use_augmentation: true
+  log_dir: logs
+  percentile_file: percentile_bounds.json
+  model_dir: .
+  normalization_file: channel_normalization.json
+  layer_index_mapping_file: layer_index_mapping.json
+  target_stats_file: target_stats.json
+  qc_scaler_file: qc_robust_scaler.pkl
+  num_workers: 4
+
+model_type: CNN
+name: CNN模型（单输出回归）
+
+training:
+  random_state: 42
+  val_size: 0.1  # 验证集比例（9:1分割训练集和验证集）
